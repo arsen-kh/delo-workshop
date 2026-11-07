@@ -1,0 +1,14 @@
+services:
+  workshop:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      ADMIN_USER: ${ADMIN_USER:-arsen}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env}
+    volumes:
+      - workshop-data:/app/data
+volumes:
+  workshop-data:

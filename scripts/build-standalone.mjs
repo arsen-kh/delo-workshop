@@ -1,0 +1,10 @@
+import {readFile,mkdir,writeFile,copyFile,readdir} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import ts from 'typescript';
+const result=spawnSync(process.execPath,['node_modules/vite/bin/vite.js','build','--config','vite.standalone.config.ts'],{stdio:'inherit'});
+if(result.status!==0)process.exit(result.status||1);
+await mkdir('server-dist/migrations',{recursive:true});
+await copyFile('standalone/server.mjs','server-dist/server.mjs');
+await writeFile('server-dist/model.mjs',ts.transpileModule(await readFile('app/model.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText);
+for(const name of await readdir('drizzle'))if(name.endsWith('.sql'))await copyFile('drizzle/'+name,'server-dist/migrations/'+name);
+console.log('Standalone server built: node --env-file=.env server-dist/server.mjs');

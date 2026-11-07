@@ -1,0 +1,12 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {csv,parseCSV,summarize} from './report.mjs';
+const header=['Номер','Клиент','Статус','Ответственный','Срок','Стоимость, ₽','Создана'];
+const row=(id,status='Новая',amount='100',created='2026-11-06T22:00:00Z',due='2026-11-06')=>[id,'Анна',status,'Арсен',due,amount,created];
+const file=rows=>({name:'test.csv',content:csv([header,...rows])});
+test('CSV handles quotes, delimiter and embedded newline',()=>{assert.deepEqual(parseCSV(csv([['Имя','Заметка'],['Анна','строка; "кавычки"\nещё']])),[['Имя','Заметка'],['Анна','строка; "кавычки"\nещё']]);assert.throws(()=>parseCSV('a;b\n"missing'),/Незакрытая/);});
+test('Summary excludes cancelled cost, ready overdue; deduplicates exports',()=>{const f=file([row('1','Закрыта','500'),row('2','Отменена','900'),row('3','Готова','200'),row('4','В работе','300')]);const r=summarize([f,f],{asOf:'2026-11-07'});assert.equal(r.total,4);assert.equal(r.closed,1);assert.equal(r.amount,500);assert.equal(r.overdue,1);assert.equal(r.duplicates,4);});
+test('Moscow date boundary is inclusive',()=>{const r=summarize([file([row('1','Новая','10','2026-11-06T22:00:00Z'),row('2','Новая','20','2026-11-06T20:00:00Z')])],{from:'2026-11-07',to:'2026-11-07'});assert.equal(r.total,1);assert.equal(r.records[0]['Номер'],'1');});
+test('Bad amounts, status and dates are reported instead of counted',()=>{const r=summarize([file([row('1','Новая','-5'),row('2','???'),row('3','Новая','100','bad'),row('4','Новая','100',undefined,'2026-02-30')])]);assert.equal(r.total,0);assert.equal(r.errors.length,4);});
+test('Conflicting duplicates, missing headers and inverted periods stop processing',()=>{assert.throws(()=>summarize([file([row('1'),row('1','Закрыта')])]),/Противоречивые/);assert.throws(()=>summarize([{name:'bad',content:'a;b\n1;2'}]),/нет столбца/);assert.throws(()=>summarize([file([])],{from:'2026-12-01',to:'2026-11-01'}),/даты/);});
+test('Spreadsheet formulas are escaped in exported cells',()=>{assert.equal(parseCSV(csv([['=HYPERLINK("x")','+7999','normal']]))[0][0],"'=HYPERLINK(\"x\")");});
